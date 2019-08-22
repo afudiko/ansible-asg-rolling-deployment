@@ -84,23 +84,7 @@
       volume_type: "{{ ebs_volume_type }}"
       delete_on_termination: "{{ ebs_delete_on_termination }}"
 
-- name: Update the ASG
-  ec2_asg:
-    region: "{{ aws_region }}"
-    default_cooldown: "{{ asg_default_cooldown }}"
-    name: "{{ asg_name }}"
-    launch_config_name: "{{ new_lc_name }}"
-    max_size: "{{ asg_max_size | default(asg.results[0].max_size) }}"
-    min_size: "{{ asg_min_size | default(asg.results[0].min_size) }}"
-    desired_capacity: "{{ asg_desired_capacity | default(asg.results[0].desired_capacity) }}"
-    health_check_type: "{{ asg_health_check_type | default(asg.results[0].health_check_type) }}"
-    health_check_period: "{{ asg_health_check_grace_period | default(asg.results[0].health_check_grace_period) }}"
-    replace_all_instances: true
-    replace_batch_size: "{{ asg_replace_batch_size | default(omit) }}"
-    wait_for_instances: "{{ asg_wait_for_instances }}"
-    wait_timeout: "{{ asg_wait_timeout }}"
-
-# asg policies 
+      # asg policies 
 - name: Configure Scaling Policies
   ec2_scaling_policy:
     state: present
@@ -162,7 +146,7 @@
     name: '{{ item.name }}'
     metric: '{{ item.metric }}'
     namespace: '{{ item.namespace }}'
-    statistic: Average
+    statistic: Sum
     comparison: '{{ item.comparison }}'
     threshold: '{{ item.threshold }}'
     period: '{{ item.period }}'
@@ -172,6 +156,22 @@
       AutoScalingGroupName: '{{ asg_name }}'
     alarm_actions: '{{ item.alarm_actions }}'
   with_items: '{{ metric_alarms }}' 
+
+- name: Update the ASG
+  ec2_asg:
+    region: "{{ aws_region }}"
+    default_cooldown: "{{ asg_default_cooldown }}"
+    name: "{{ asg_name }}"
+    launch_config_name: "{{ new_lc_name }}"
+    max_size: "{{ asg_max_size | default(asg.results[0].max_size) }}"
+    min_size: "{{ asg_min_size | default(asg.results[0].min_size) }}"
+    desired_capacity: "{{ asg_desired_capacity | default(asg.results[0].desired_capacity) }}"
+    health_check_type: "{{ asg_health_check_type | default(asg.results[0].health_check_type) }}"
+    health_check_period: "{{ asg_health_check_grace_period | default(asg.results[0].health_check_grace_period) }}"
+    replace_all_instances: true
+    replace_batch_size: "{{ asg_replace_batch_size | default(omit) }}"
+    wait_for_instances: "{{ asg_wait_for_instances }}"
+    wait_timeout: "{{ asg_wait_timeout }}"
 
 - name: Delete the Old Launch Configuration
   ec2_lc:
