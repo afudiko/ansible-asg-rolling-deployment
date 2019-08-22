@@ -100,6 +100,79 @@
     wait_for_instances: "{{ asg_wait_for_instances }}"
     wait_timeout: "{{ asg_wait_timeout }}"
 
+# asg policies 
+- name: Configure Scaling Policies
+  ec2_scaling_policy:
+    state: present
+    region: '{{ aws_region }}'
+    asg_name: '{{ asg_name }}'
+    name: '{{ item.name }}'
+    adjustment_type: '{{ item.adjustment_type }}'
+    scaling_adjustment: '{{ item.scaling_adjustment }}'
+    min_adjustment_step: '{{ item.min_adjustment_step }}'
+    cooldown: '{{ item.cooldown }}'
+  with_items:
+    - name: Scale Out Policy
+      adjustment_type: ChangeInCapacity
+      scaling_adjustment: 1
+      min_adjustment_step: 1
+      cooldown: 180
+    - name: Scale In Policy
+      adjustment_type: ChangeInCapacity
+      scaling_adjustment: -1
+      min_adjustment_step: 1
+      cooldown: 300
+  register: scaling_policy
+
+# Alarm
+- name: Define Metric Alarms
+  set_fact:
+    metric_alarms:
+      # Scale Out when High CPU or High Memory
+      - name: SQS Scale Out
+        comparison: '>='
+        threshold: 10
+        period: 300
+        evaluation_periods: 1
+        metric: ApproximateNumberOfMessagesVisible
+        namespace: AWS/SQS
+        alarm_actions:
+          - '{{ scaling_policy.results[0].arn }}'
+        debug:
+          msg: "{{ scaling_policy.results[0].arn }}"
+          verbosity: 3
+      # Scale In when Low CPU and Low Memory
+      - name: SQS Scale In
+        comparison: '<='
+        threshold: 3
+        period: 300
+        evaluation_periods: 1
+        metric: ApproximateNumberOfMessagesVisible
+        namespace: AWS/SQS
+        alarm_actions:
+          - '{{ scaling_policy.results[1].arn }}'
+        debug:
+          msg: "{{ scaling_policy.results[1].arn }}"
+          verbosity: 3
+
+- name: Configure Metric Alarms and Attach Scaling Policies
+  ec2_metric_alarm:
+    state: present
+    region: '{{ aws_region }}'
+    name: '{{ item.name }}'
+    metric: '{{ item.metric }}'
+    namespace: '{{ item.namespace }}'
+    statistic: Average
+    comparison: '{{ item.comparison }}'
+    threshold: '{{ item.threshold }}'
+    period: '{{ item.period }}'
+    evaluation_periods: '{{ item.evaluation_periods }}'
+    unit: Count
+    dimensions:
+      AutoScalingGroupName: '{{ asg_name }}'
+    alarm_actions: '{{ item.alarm_actions }}'
+  with_items: '{{ metric_alarms }}' 
+
 - name: Delete the Old Launch Configuration
   ec2_lc:
     region: "{{ aws_region }}"
